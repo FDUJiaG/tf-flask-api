@@ -1,0 +1,43 @@
+import os
+import model
+import tensorflow as tf
+import input_data
+
+data = input_data.read_data_sets('MNIST_data', one_hot=True)
+
+# model
+with tf.compat.v1.variable_scope("convolutional"):
+    x = tf.compat.v1.placeholder(tf.float32, [None, 784], name='x')
+    keep_prob = tf.compat.v1.placeholder(tf.float32)
+    y, variables = model.convolutional(x, keep_prob)
+
+# train
+y_ = tf.compat.v1.placeholder(tf.float32, [None, 10], name='y')
+cross_entropy = -tf.reduce_sum(y_ * tf.math.log(y))
+train_step = tf.compat.v1.train.AdamOptimizer (1e-4).minimize(cross_entropy)
+correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+saver = tf.compat.v1.train.Saver(variables)
+
+with tf.compat.v1.Session() as sess:
+    merged_summary_op = tf.compat.v1.summary.merge_all()
+    summary_writer = tf.compat.v1.summary.FileWriter('/tmp/minist_log/1', sess.graph)
+    summary_writer.add_graph(sess.graph)
+    sess.run(tf.compat.v1.global_variables_initializer())
+
+    for i in range(20000):
+        batch = data.train.next_batch(50)
+        if i % 100 == 0:
+            train_accuracy = accuracy.eval(feed_dict={x: batch[0], y_: batch[1], keep_prob: 1.0})
+            print("step %d, training accuracy %g" % (i, train_accuracy))
+        sess.run(train_step, feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
+
+    print(sess.run(accuracy, feed_dict={x: data.test.images, y_: data.test.labels, keep_prob: 1.0}))
+
+    path = saver.save(
+        sess, os.path.join(os.path.dirname(__file__), 'data', 'convolutional.ckpt'),
+        write_meta_graph = False, write_state=False
+    )
+
+    print("Saved:", path)
